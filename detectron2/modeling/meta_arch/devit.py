@@ -457,6 +457,7 @@ class OpenSetDetectorWithExamples(nn.Module):
                 prototype_label_names = dct['label_names']
         elif isinstance(class_prototypes_file, list):
             p1, p2 = torch.load(class_prototypes_file[0]), torch.load(class_prototypes_file[1])
+            print(p1['prototypes'].shape,p2['prototypes'].shape)
             if 'origin_label_names' in p1 or 'origin_label_names' in p2:
                 assert 'origin_label_names' in p2
                 oneshot_num_classes = len(p2['origin_label_names'])
@@ -479,11 +480,13 @@ class OpenSetDetectorWithExamples(nn.Module):
         else:
             raise NotImplementedError()
 
+        # print(f'prototypes: {prototypes.shape}')
         if len(prototypes.shape) == 3:
             class_weights = F.normalize(prototypes.mean(dim=1), dim=-1)
         else:
             class_weights = F.normalize(prototypes, dim=-1)
         
+        # print(f'class_weights: {class_weights.shape}')
         self.num_train_classes = len(seen_cids)
         self.num_classes = len(all_cids)
 
@@ -1018,7 +1021,7 @@ class OpenSetDetectorWithExamples(nn.Module):
                             for i in range(len(batched_inputs))]
                 else:
                     boxes = rpn_boxes
-
+                
                 class_labels = []
                 matched_gt_boxes = []
                 resampled_proposals = []
@@ -1103,13 +1106,14 @@ class OpenSetDetectorWithExamples(nn.Module):
 
         roi_features = self.roi_align(patch_tokens, rois) # N, C, k, k
         roi_bs = len(roi_features)
-
+        
         # roi_features # N x emb x spatial
         #%% #! Classification
         if (self.training and (not self.only_train_mask)) or (not self.training):
             roi_features = roi_features.flatten(2) 
             bs, spatial_size = roi_features.shape[0], roi_features.shape[-1]
             # (N x spatial x emb) @ (emb x class) = N x spatial x class
+            
             feats = roi_features.transpose(-2, -1) @ class_weights.T
 
             # sample topk classes
@@ -1126,8 +1130,10 @@ class OpenSetDetectorWithExamples(nn.Module):
             if sample_class_enabled:
                 num_active_classes = class_topk
                 init_scores = F.normalize(roi_features.flatten(2).mean(2), dim=1) @ class_weights.T
+                # print(f'ciaooo: {init_scores.shape}, {class_topk}, {roi_features.shape}, {num_classes}')
                 topk_class_indices = torch.topk(init_scores, class_topk, dim=1).indices
 
+                # print(topk_class_indices.shape)
                 if self.training:
                     class_indices = []
                     for i in range(roi_bs):
@@ -1140,6 +1146,7 @@ class OpenSetDetectorWithExamples(nn.Module):
                                                 topk_class_indices_i[:-1]])
                         class_indices.append(curr_indices)
                     class_indices = torch.stack(class_indices).to(self.device) 
+                    
                 else:
                     class_indices = topk_class_indices
                 
@@ -1148,10 +1155,13 @@ class OpenSetDetectorWithExamples(nn.Module):
                 num_active_classes = num_classes
 
             other_classes = [] 
+            
             if sample_class_enabled:
                 indexes = torch.arange(0, num_classes, device=self.device)[None, None, :].repeat(bs, spatial_size, 1)
+                
                 for i in range(class_topk):
                     cmask = indexes != class_indices[:, i].view(-1, 1, 1)
+                    
                     _ = torch.gather(feats, 2, indexes[cmask].view(bs, spatial_size, num_classes - 1)) # N x spatial x classes-1
                     other_classes.append(_[:, :, None, :]) 
             else:
@@ -1165,7 +1175,10 @@ class OpenSetDetectorWithExamples(nn.Module):
             other_classes = other_classes.permute(0, 2, 1, 3) # N x classes x spatial x classes-1
             other_classes = other_classes.flatten(0, 1) # (Nxclasses) x spatial x classes-1
             other_classes, _ = torch.sort(other_classes, dim=-1)
-            other_classes = interpolate(other_classes, self.T, mode='linear') # (Nxclasses) x spatial x T
+            if num_classes > 1:
+                other_classes = interpolate(other_classes, self.T, mode='linear') # (Nxclasses) x spatial x T
+            else:
+                other_classes = torch.zeros(feats.shape[0],feats.shape[1],self.T).to(device=self.device)
             other_classes = self.fc_other_class(other_classes) # (Nxclasses) x spatial x emb
             other_classes = other_classes.permute(0, 2, 1) # (Nxclasses) x emb x spatial
             # (Nxclasses) x emb x S x S
