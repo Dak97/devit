@@ -11,7 +11,8 @@ MODEL:
   BACKBONE:
     NAME: "build_dino_v2_vit"
     TYPE: "large" # base, small
-  WEIGHTS: ".\\weights\\schisto\\model_final.pth" 
+  WEIGHTS: ".\\weights\\schisto\\model_final.pth"
+  DEVICE: cuda
   MASK_ON: False
   RPN:
     HEAD_NAME: StandardRPNHead
