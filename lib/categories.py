@@ -1,6 +1,12 @@
 from detectron2.data.datasets.coco_zeroshot_categories import COCO_SEEN_CLS, \
     COCO_UNSEEN_CLS, COCO_OVD_ALL_CLS
-from detectron2.data import MetadataCatalog
+from detectron2.data import MetadataCatalog, DatasetCatalog
+import sys
+
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from utils.load_dataset import get_WBC_dicts, register_dataset
+from utils_schisto.load_dataset import register_schisto_dataset
 
 coco17_all_classes = MetadataCatalog.get('coco_2017_val').thing_classes
 
@@ -18,11 +24,25 @@ COCO_2017_SPLIT_4 = 'coco_2017_train_oneshot_s4'
 COCO_2014_FEW_SHOT = 'fs_coco14_base_train'
 COCO_2017_FEW_SHOT = 'fs_coco17_base_train' # not used
 
+WBC = 'WBC_train'
+SCHISTO = 'schisto_train'
+
 
 fs_coco_2014_seen_classes = ['truck', 'traffic light', 'fire hydrant', 'stop sign', 'parking meter', 'bench', 'elephant', 'bear', 'zebra', 'giraffe', 'backpack', 'umbrella', 'handbag', 'tie', 'suitcase', 'frisbee', 'skis', 'snowboard', 'sports ball', 'kite', 'baseball bat', 'baseball glove', 'skateboard', 'surfboard', 'tennis racket', 'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple', 'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake', 'bed', 'toilet', 'laptop', 'mouse', 'remote', 'keyboard', 'cell phone', 'microwave', 'oven', 'toaster', 'sink', 'refrigerator', 'book', 'clock', 'vase', 'scissors', 'teddy bear', 'hair drier', 'toothbrush']
 
 # from fs_coco_test_all
 fs_coco_2014_all_classes = MetadataCatalog.get('coco_2014_val').thing_classes
+
+register_dataset('WBC_', split=['train', 'val'], labels=['WBC'])
+register_schisto_dataset('schisto_train','datasets\\schisto_segm\\train\\annotations.json', 'datasets\\schisto_segm\\train\\')
+register_schisto_dataset('schisto_val','datasets\\schisto_segm\\val\\annotations.json', 'datasets\\schisto_segm\\val\\')
+register_schisto_dataset('schisto_test','datasets\\schisto_segm\\test\\annotations.json', 'datasets\\schisto_segm\\test\\')
+# register_schisto_dataset('schisto_val','datasets\\schisto\\val\\annotations.json', 'datasets\\schisto\\val\\')
+# register_schisto_dataset('schisto_test','datasets\\schisto\\test\\annotations.json', 'datasets\\schisto\\test\\')
+
+wbc_train = MetadataCatalog.get('WBC_train').thing_classes
+schisto_train = ['Schistocyte'] #MetadataCatalog.get('schisto_train')
+
 
 def get_oneshot_split(split):
     return [coco17_all_classes[cid] for cid in range(80) if contiguous_id_to_thing_dataset_id[cid] % 4 != split]
@@ -40,7 +60,12 @@ SEEN_CLS_DICT = {
     COCO_2017_SPLIT_4: get_oneshot_split(0),
 
     COCO_2014_FEW_SHOT: fs_coco_2014_seen_classes,
-    COCO_2017_FEW_SHOT: fs_coco_2014_seen_classes
+    COCO_2017_FEW_SHOT: fs_coco_2014_seen_classes,
+
+    WBC: wbc_train,
+    SCHISTO: schisto_train
+
+    
 }
 
 
@@ -54,11 +79,16 @@ ALL_CLS_DICT = {
     COCO_2017_SPLIT_4: coco17_all_classes,
     
     COCO_2014_FEW_SHOT: fs_coco_2014_all_classes,
-    COCO_2017_FEW_SHOT: fs_coco_2014_all_classes
+    COCO_2017_FEW_SHOT: fs_coco_2014_all_classes,
+
+    WBC: wbc_train ,
+    SCHISTO: schisto_train
+
 }
 
 
 
 if __name__ == "__main__":
+    print(ALL_CLS_DICT[WBC])
     print("COCO_2017_SPLIT_1 (seen)", SEEN_CLS_DICT[COCO_2017_SPLIT_1])
     print("COCO_2017_SPLIT_1 (unseen)", [c for c in ALL_CLS_DICT[COCO_2017_SPLIT_1] if c not in SEEN_CLS_DICT[COCO_2017_SPLIT_1]])
